@@ -1,0 +1,984 @@
+---
+title: "Data 621 HW4-Auto Insurance Claim Prediction"
+author: (Group 4) Yina Qiao, Mohamed Hassan-El Seraf, Chun Shing Leung, Keith Colella, Eddie Xu
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+---
+
+This project aims to predict the probability that a person will crash their car and estimate the potential claim amount based on various factors. 
+
+# DATA EXPLORATION
+In this section, we explore the dataset to understand its structure, variables, and summary statistics. We us especialized plots (from the visdat package) to identify missing values in both numeric and categorical variables, visualizations such as box plots, histograms, and bar plots to reveal distributions, a heatmap to show correlations.  The goal is to provide a clear overview of the data, highlighting key findings that will guide the next steps in data transformation
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Exploratory Data Analysis
+library(tidyverse)
+library(dplyr)
+library(DataExplorer)
+library(visdat)
+library(ggplot2)
+library(psych)
+library(reshape2)
+# Handling Missing Values
+library(mice)
+
+# Creating Dummy Variables
+library(caret)
+library(fastDummies)
+# Multicollinearity Check
+library(car)
+# Scaling & Normalization
+library(scales)
+# Class Balancing
+library(tidymodels)
+library(themis)
+
+library(leaps)
+library(caret)
+library(MASS)
+library(forecast)
+library(yardstick)
+library(pROC)
+library(gridExtra)
+
+
+
+df_ins_raw <- read.csv("https://raw.githubusercontent.com/yinaS1234/Auto-Insurance-Regression/refs/heads/main/data/insurance_training_data.csv?token=GHSAT0AAAAAACYZCXU2KALCPQONYEWJER42ZZL2RWA")
+df_ins_raw <- subset(df_ins_raw, select = -c(INDEX))
+
+```
+
+## Dataset
+
+The dataset comprises 8,161 records across 25 columns, indicating a likely high-dimensional structure with a mix of numeric and categorical data types. The TARGET_FLAG variable indicates accident cases and shows a class imbalance, with accident cases comprising about 26% of the data.  Key numeric fields, including INCOME, HOME_VAL, OLDCLAIM, and BLUEBOOK, contain numeric data represented as characters (e.g., $, z_, and <) and require cleaning.  Additionally, there are missing values in 6 fields, including INCOME, HOME_VAL, and JOB etc, affecting approximately 1.5% of observations. Many variables exhibit right skewness, particularly TARGET_AMT, suggesting outliers. Variables such as MVR_PTS and CLM_FREQ show moderate positive correlations with accident likelihood and claim amounts, while HOME_VAL and INCOME correlate slightly negatively with accident likelihood.
+
+```{r, echo=FALSE}
+str(df_ins_raw)
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE}
+df_ins_raw <- df_ins_raw %>%
+  mutate(
+    INCOME = as.numeric(gsub("[$,]", "", INCOME)),
+    HOME_VAL = as.numeric(gsub("[$,]", "", HOME_VAL)),
+    OLDCLAIM = as.numeric(gsub("[$,]", "", OLDCLAIM)),
+    BLUEBOOK = as.numeric(gsub("[$,]", "", BLUEBOOK))
+  )
+
+df_ins_raw <- df_ins_raw %>%
+  mutate(across(where(~ !is.numeric(.)), 
+                ~ str_replace_all(., c("z_" = "", "<" = ""))))
+```
+
+
+
+```{r, echo=FALSE}
+num_vars <- df_ins_raw %>% select_if(where(is.numeric))
+vis_miss(num_vars, cluster = TRUE) + 
+  ggtitle("Numeric Variables \n- Most Missing Values (INCOME, HOME_VAL, AGE, YOJ, CAR_AGE)") +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.margin = unit(c(1, 2, 1, 1), "cm")
+  )
+```
+
+The count of missing records
+```{r, echo=FALSE, warning=FALSE}
+print(colSums(is.na(num_vars))[colSums(is.na(num_vars)) > 0])
+```
+
+```{r, echo=FALSE}
+cat_vars <- df_ins_raw %>% select_if(~ !is.numeric(.))
+cat_vars <- cat_vars %>% 
+  mutate(across(everything(), ~na_if(., "")))
+vis_miss(cat_vars, cluster = TRUE) +
+  ggtitle("Categorical Variables \n- Most Missing Values (JOB)") +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.margin = unit(c(1, 2, 1, 1), "cm")
+  )
+```
+
+The count of missing records
+```{r, echo=FALSE}
+print(colSums(is.na(cat_vars))[colSums(is.na(cat_vars)) > 0])
+```
+
+
+```{r, echo=FALSE}
+introduce(df_ins_raw )
+
+```
+
+Metrics
+
+
+
+
+
+The bar plots for categorical variables highlight clear distributions across categories.  Some categories like JOB and EDUCATION have diverse entries.
+
+```{r, echo=FALSE, warning=FALSE}
+
+
+cat_vars%>%
+  gather() %>%
+  ggplot(aes(value)) +
+  geom_bar(fill = "lightblue", color="grey") +
+  facet_wrap(~ key, scales = "free", ncol = 4) +
+  theme(
+    panel.grid = element_blank(), 
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  labs(title = "Bar Plots of Categorical Variables")
+
+```
+
+
+
+
+Below plots along with summary statistics shows that most numeric variables like TARGET_AMT, MVR_PTS and TRAVTIME,etc exhibit right-skewed distributions and outliers. Summary statistics also highlight that only 26% of cases involve crashes, indicating class imbalance. Both suggest potential data transformation needed for modeling.
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+# Boxplot
+num_vars %>%
+  gather() %>%
+  ggplot(aes(value)) +
+  facet_wrap(~ key, scales = "free") +
+  geom_boxplot(fill = "pink") +
+  labs(title = "Box & Histogram Plots of Numeric Variables", x = "Value", y = "Frequency")
+
+
+
+ggplot(gather(num_vars), aes(value)) +
+  facet_wrap(~ key, scales = "free") +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black")
+```
+
+
+
+
+```{r,echo=FALSE, warning=FALSE}
+full_summary <- describeBy(df_ins_raw)
+print(full_summary[,c(1, 3, 4, 5, 8, 9, 11, 12)])
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+cor_matrix <- cor(df_ins_raw %>% select_if(where(is.numeric)), use = "complete.obs")
+
+cor_long <- melt(cor_matrix)
+cor_long <- cor_long[as.numeric(cor_long$Var1) > as.numeric(cor_long$Var2), ]
+
+
+ggplot(cor_long, aes(Var2, Var1, fill = value)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = ifelse(value != 0, round(value, 2), "")), 
+            color = "black", size = 3, face="bold") +  # Show only significant values
+  scale_fill_gradient2(low = "pink", high = "blue", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), 
+                       space = "Lab", name = "Correlation") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),  # Adjust x-axis label
+    axis.text.y = element_text(size = 10),                                   # Adjust y-axis label
+    axis.title = element_blank(),                                            # Remove axis titles
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14)          # Center plot title
+  ) +
+  ggtitle("Correlation Matrix")
+
+```
+
+A few key variable relationships observed from the correlation plot are summarized below:
+
+![Insight Table](https://github.com/yinaS1234/Auto-Insurance-Regression/raw/main/Resources/insighttable.png)
+
+<br><br>
+
+
+Next steps will focus on variable cleaning/transformation, imputation for missing values, handling skewness, outliers, vif check, class imbalance to build reliable models.
+
+
+
+# Data Prep
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+df_ins_prep<-df_ins_raw
+str(df_ins_prep)
+describeBy(df_ins_prep)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+# Create Missing Flags for Numeric Variables
+missing_flags_num <- df_ins_prep %>%
+  dplyr::select_if(is.numeric) %>%
+  summarise(across(everything(), ~ sum(is.na(.)) > 0)) %>%
+  dplyr::select(where(~ . == TRUE)) %>%
+  names()
+
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(all_of(missing_flags_num), ~ ifelse(is.na(.), 1, 0), .names = "{.col}_MISSING_FLAG"))
+
+# Create Missing Flags for Categorical Variables
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(where(~ !is.numeric(.)), ~ na_if(., "")))
+
+missing_flags_cat <- df_ins_prep %>%
+  dplyr::select_if(~ !is.numeric(.)) %>%
+  summarise(across(everything(), ~ sum(is.na(.)) > 0)) %>%
+  dplyr::select(where(~ . == TRUE)) %>%
+  names()
+
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(all_of(missing_flags_cat), ~ ifelse(is.na(.), 1, 0), .names = "{.col}_MISSING_FLAG"))
+
+# Numeric variables: Regression-based imputation
+impute_mice <- mice(df_ins_prep, method = "norm.predict", m = 1, remove.collinear = FALSE)
+df_ins_prep <- complete(impute_mice)
+
+# Categorical Variables: Mode-based Imputation
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(where(~ !is.numeric(.)), ~ replace_na(., getmode(.))))
+
+# Select all columns except missing flags for visualization
+vars_without_flags <- df_ins_prep %>% dplyr::select(-contains("_MISSING_FLAG"))
+
+# Visualize Missing Values (All Variables After Imputation)
+vis_miss(vars_without_flags, cluster = TRUE) +
+  ggtitle("All Variables - Imputed Missing Values") +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.margin = unit(c(1, 2, 1, 1), "cm")
+  )
+
+missing_flag_counts <- df_ins_prep %>%
+  dplyr::select(contains("_MISSING_FLAG")) %>%
+  summarise(across(everything(), sum))
+
+# Display the count of 1s in each missing flag column
+print(missing_flag_counts)
+
+sapply(df_ins_prep, class)
+
+# Define the list of columns to be converted to factors
+factor_cols <- c("TARGET_FLAG", "PARENT1", "MSTATUS", "SEX", "EDUCATION", "JOB", 
+                 "CAR_USE", "CAR_TYPE", "RED_CAR", "REVOKED", "URBANICITY")
+
+# Convert the specified columns to factors and the rest to numeric
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(all_of(factor_cols), as.factor)) %>%
+  mutate(across(!all_of(factor_cols), as.numeric))
+
+sapply(df_ins_prep, class)
+
+
+
+
+# Define variables for conditional log transformation and Box-Cox transformation
+log_vars <- c("TARGET_AMT", "OLDCLAIM", "MVR_PTS")
+boxcox_vars <- c("BLUEBOOK", "CAR_AGE", "HOME_VAL", "INCOME", "TIF", "TRAVTIME", "CLM_FREQ")
+
+# Apply conditional log transformation for high-skew variables with many zeros
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(all_of(log_vars), ~ if_else(. == 0, 0, log(.)), .names = "log_{.col}"))
+
+# Apply Box-Cox transformation using forecast package for other moderately skewed variables
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(
+    all_of(boxcox_vars),
+    ~ forecast::BoxCox(. + 1, lambda = forecast::BoxCox.lambda(. + 1)), # Adding 1 to handle zeros
+    .names = "{.col}_transform"
+  ))
+
+# Remove original variables except 'TARGET_AMT' to prevent redundancy
+df_ins_prep <- df_ins_prep %>%
+  dplyr::select(-all_of(c(log_vars[log_vars != "TARGET_AMT"], boxcox_vars)))
+
+
+
+# Select only transformed variables for plotting
+transformed_vars <- df_ins_prep %>% dplyr::select(dplyr::matches("log_|_transform$"))
+
+# Plot histograms for transformed variables using DataExplorer
+DataExplorer::plot_histogram(
+  data = transformed_vars,
+  geom_histogram_args = list(alpha = 0.5, fill = "lightblue", color = "black"),
+  ggtheme = theme_minimal()
+)
+
+ #Feature Engineering
+# Bucketing AGE
+df_ins_prep <- df_ins_prep %>%
+  mutate(AGE_GROUP = case_when(
+    AGE < 30 ~ "Young",
+    AGE >= 30 & AGE < 50 ~ "Middle-Aged",
+    AGE >= 50 ~ "Older"
+  ))
+
+
+# Create Dummy Variables
+df_ins_prep <- df_ins_prep %>%
+  dplyr::select(-TARGET_FLAG) %>%
+  dummy_cols(remove_first_dummy = TRUE) %>%
+  bind_cols(df_ins_prep %>% dplyr::select(TARGET_FLAG))
+
+# Define the list of original categorical columns
+cat_cols <- c("PARENT1", "MSTATUS", "SEX", "EDUCATION", "JOB", 
+              "CAR_USE", "CAR_TYPE", "RED_CAR", "REVOKED", "URBANICITY", "AGE_GROUP")
+
+# Remove the original categorical columns
+df_ins_prep <- df_ins_prep %>%
+  dplyr::select(-all_of(cat_cols))
+
+# Check the structure to confirm the dummies
+str(df_ins_prep)
+describeBy(df_ins_prep)
+
+
+
+# Handle Outliers
+# Define a function for capping outliers using the 1st and 99th percentiles
+cap_outliers <- function(x) {
+  lower_bound <- quantile(x, 0.01, na.rm = TRUE)
+  upper_bound <- quantile(x, 0.99, na.rm = TRUE)
+  x <- ifelse(x < lower_bound, lower_bound, x)
+  x <- ifelse(x > upper_bound, upper_bound, x)
+  return(x)
+}
+
+# Select numeric variables, excluding target variables and missing flags
+numeric_vars <- df_ins_prep %>%
+  dplyr::select(where(~ is.numeric(.x) && !is.integer(.x)), 
+                -log_TARGET_AMT, 
+                -TARGET_AMT, 
+                -TARGET_FLAG,
+                -contains("_MISSING_FLAG"))
+
+# Apply the capping function to each numeric variable
+df_ins_prep <- df_ins_prep %>%
+  mutate(across(all_of(names(numeric_vars)), cap_outliers))
+
+describeBy(df_ins_prep)
+
+
+
+# Adjust plot layout for a larger boxplot
+par(mar = c(8, 4, 4, 2) + 0.1, cex.axis = 0.8, las = 2)  # Increase bottom margin and axis text size
+
+#Plot boxplot with enhanced settings
+boxplot(df_ins_prep %>% dplyr::select(all_of(names(numeric_vars))),
+        main = "Boxplot After Outlier Handling for Numeric Variables",
+        col = "lightblue")
+
+
+
+
+
+mlr_vars <- df_ins_prep %>%
+  dplyr::select(-TARGET_AMT, 
+                -TARGET_FLAG, 
+                -contains("_MISSING_FLAG"))
+
+mlr_vif_model <- lm(log_TARGET_AMT ~ ., data = mlr_vars)
+print(vif(mlr_vif_model))
+
+mlr_vars <- df_ins_prep %>%
+  dplyr::select(-TARGET_AMT, 
+                -TARGET_FLAG, 
+                -contains("_MISSING_FLAG"),
+                -CLM_FREQ_transform)
+
+mlr_vif_model <- lm(log_TARGET_AMT ~ ., data = mlr_vars)
+print(vif(mlr_vif_model))
+
+mlr_scaled <- mlr_vars %>%
+  dplyr::select(-log_TARGET_AMT) %>%
+  mutate(across(where(~ is.numeric(.x) && !is.integer(.x)), scale))
+
+mlr_scaled <- mlr_scaled %>%
+  bind_cols(df_ins_prep %>% dplyr::select(TARGET_AMT, log_TARGET_AMT))
+
+describeBy(mlr_scaled)
+
+```
+
+
+# Model Building
+
+## MLR
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+# Set seed for reproducibility
+set.seed(123)
+trainIndex <- createDataPartition(mlr_scaled$log_TARGET_AMT, p = 0.5, list = FALSE)
+mlr_train <- mlr_scaled[trainIndex, ]
+mlr_valid <- mlr_scaled[-trainIndex, ]
+
+
+
+# Fit full MLR model, using dplyr::select() to avoid conflicts with MASS::select()
+mlr_full_model <- lm(log_TARGET_AMT ~ ., data = mlr_train %>% dplyr::select(-TARGET_AMT))
+summary(mlr_full_model)
+mlr_eval_pred_log <- predict(mlr_full_model, newdata = mlr_valid %>% dplyr::select(-TARGET_AMT))
+
+
+
+stepwise_model <- stepAIC(mlr_full_model, direction = "both", trace = FALSE)
+summary(stepwise_model)
+mlr_stepwise_pred_log <- predict(stepwise_model, newdata = mlr_valid %>% dplyr::select(-TARGET_AMT))
+
+
+
+
+# Define a function to calculate relevant metrics
+eval_metrics <- function(true_values, predictions, num_predictors) {
+  n <- length(true_values)
+  rss <- sum((true_values - predictions)^2)
+  tss <- sum((true_values - mean(true_values))^2)
+  rsq <- 1 - rss / tss
+  mse <- mean((true_values - predictions)^2)
+  rmse <- sqrt(mse)
+  
+  # Calculate Adjusted R-squared
+  adj_rsq <- 1 - ((1 - rsq) * (n - 1) / (n - num_predictors - 1))
+  
+  # F-statistic calculation
+  f_stat <- (rsq / (1 - rsq)) * ((n - num_predictors - 1) / num_predictors)
+  
+  return(list(mse = mse, rmse = rmse, rsq = rsq, adj_rsq = adj_rsq, f_stat = f_stat))
+}
+
+# Calculate metrics for Full Model on validation set
+metrics_full <- eval_metrics(mlr_valid$log_TARGET_AMT, mlr_eval_pred_log, num_predictors = length(coef(mlr_full_model)) - 1)
+
+# Calculate metrics for Stepwise Model on validation set
+metrics_stepwise <- eval_metrics(mlr_valid$log_TARGET_AMT, mlr_stepwise_pred_log, num_predictors = length(coef(stepwise_model)) - 1)
+
+# Display results for both models
+cat("Full Model Metrics:\n")
+print(metrics_full)
+
+cat("\nStepwise Model Metrics:\n")
+print(metrics_stepwise)
+
+ 
+# Calculate residuals for the full model on the validation set
+mlr_eval_residuals_full <- mlr_valid$log_TARGET_AMT - mlr_eval_pred_log
+
+# Calculate residuals for the stepwise model on the validation set
+mlr_eval_residuals_stepwise <- mlr_valid$log_TARGET_AMT - mlr_stepwise_pred_log
+
+# Set up the plotting area for side-by-side plots
+par(mfrow = c(1, 2))
+
+# Full model QQ plot
+qqnorm(mlr_eval_residuals_full, main = "QQ Plot of Full Model")
+qqline(mlr_eval_residuals_full, col = "red")
+
+# Stepwise model QQ plot
+qqnorm(mlr_eval_residuals_stepwise, main = "QQ Plot of Stepwise Model")
+qqline(mlr_eval_residuals_stepwise, col = "red")
+
+# Reset plotting area to default
+par(mfrow = c(1, 1))
+
+
+
+
+# Variable importance for Full Model
+varImp_full <- varImp(mlr_full_model) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("Variable") %>% 
+  top_n(6, wt = Overall)
+
+# Variable importance for Stepwise Model
+varImp_stepwise <- varImp(stepwise_model) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("Variable") %>% 
+  top_n(6, wt = Overall)
+
+
+# Plotting Full Model Variable Importance
+ggplot(varImp_full, aes(x = reorder(Variable, Overall), y = Overall)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(title = "Top 6 Variables - Full Model", x = "Variable", y = "Importance") +
+  theme_minimal()
+
+# Plotting Stepwise Model Variable Importance
+ggplot(varImp_stepwise, aes(x = reorder(Variable, Overall), y = Overall)) +
+  geom_bar(stat = "identity", fill = "salmon") +
+  coord_flip() +
+  labs(title = "Top 6 Variables - Stepwise Model", x = "Variable", y = "Importance") +
+  theme_minimal()
+
+
+mlr_eval__stepwise_pred <- exp(mlr_stepwise_pred_log)
+
+comparison_data <- data.frame(
+  Actual = mlr_valid$TARGET_AMT,
+  Predicted = mlr_eval__stepwise_pred
+)
+
+describeBy(comparison_data)
+
+# Plot histograms for transformed variables using DataExplorer
+DataExplorer::plot_histogram(
+  data = comparison_data,
+  geom_histogram_args = list(alpha = 0.5, fill = "lightblue", color = "black"),
+  ggtheme = theme_minimal()
+)
+
+
+```
+
+## Retrain selected MLR on full data
+
+
+Retraining on the entire dataset allows the model to capture all available information, which generally improves its robustness for future, unseen data predictions.
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+set.seed(123)
+# Fit the stepwise model on the full dataset
+final_mlr_stepwise_model <- stepAIC(
+  lm(log_TARGET_AMT ~ ., data = mlr_scaled %>% dplyr::select(-TARGET_AMT)),
+  direction = "both",
+  trace = FALSE
+)
+
+```
+
+## BLR
+
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+
+# Select variables for BLR VIF calculation
+blr_vars <- df_ins_prep %>%
+  dplyr::select(-TARGET_AMT,
+                -log_TARGET_AMT,
+                -contains("_MISSING_FLAG"))
+
+# Fit the initial model for VIF calculation
+blr_vif_model <- glm(TARGET_FLAG ~ ., data = blr_vars, family = binomial)
+print(vif(blr_vif_model))
+
+
+
+blr_vars <- df_ins_prep %>%
+  dplyr::select(-TARGET_AMT,
+                -log_TARGET_AMT,
+                -contains("_MISSING_FLAG"),
+                -log_OLDCLAIM)
+
+blr_vif_model <- glm(TARGET_FLAG ~ ., data = blr_vars, family = binomial)
+print(vif(blr_vif_model))
+
+set.seed(123)
+trainIndex <- createDataPartition(blr_vars$TARGET_FLAG, p = 0.8, list = FALSE)
+blr_train <- blr_vars[trainIndex, ]
+blr_val <- blr_vars[-trainIndex, ]
+
+# Defining a recipe is like writing down steps to make a balanced cake (downsampled data).
+# Baking is actually following steps to create the cake (balanced dataset).
+table(blr_train$TARGET_FLAG)
+
+downsample_recipe <- recipe(TARGET_FLAG ~ ., data = blr_train) %>%
+  step_downsample(TARGET_FLAG) %>%
+  prep()
+
+downsampled_train <- bake(downsample_recipe, new_data = NULL)
+table(downsampled_train$TARGET_FLAG)
+
+
+logit_spec <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+null_model <- logit_spec %>%
+  fit(TARGET_FLAG ~ 1, data = downsampled_train)
+
+summary(null_model$fit)
+
+
+full_model <- logit_spec %>%
+  fit(TARGET_FLAG ~ ., data = downsampled_train)
+
+summary(full_model$fit)
+
+
+# For the stepwise model, we’re adding 2 specific feature selection steps that aren’t applied to the null and full models
+stepwise_recipe <- recipe(TARGET_FLAG ~ ., data = downsampled_train) %>%
+  step_nzv(all_predictors()) %>%   
+  step_corr(all_numeric_predictors(), threshold = 0.9) %>% 
+  prep()
+
+stepwise_train <- bake(stepwise_recipe, new_data = NULL)
+
+stepwise_model <- logit_spec %>%
+  fit(TARGET_FLAG ~ ., data = stepwise_train)
+
+summary(stepwise_model$fit)
+
+
+
+
+# Updated evaluate_model to return the plot
+evaluate_model <- function(pred_data, truth_col, pred_col, prob_col) {
+  cm <- confusionMatrix(factor(pred_data[[pred_col]], levels = c("0", "1")),
+                        reference = factor(pred_data[[truth_col]], levels = c("0", "1")),
+                        positive = "1")
+  
+  auc_value <- roc(pred_data[[truth_col]], pred_data[[prob_col]], levels = c("0", "1"), direction = "<")$auc
+  
+  results <- list(
+    Accuracy = cm$overall["Accuracy"],
+    Error_Rate = 1 - cm$overall["Accuracy"],
+    Kappa = cm$overall["Kappa"],
+    Precision = cm$byClass["Precision"],
+    Sensitivity = cm$byClass["Sensitivity"],
+    Specificity = cm$byClass["Specificity"],
+    F1_Score = cm$byClass["F1"],
+    AUC = auc_value,
+    Confusion_Matrix = cm$table
+  )
+  
+
+  cm_plot <- as.data.frame(as.table(cm$table))
+  cm_plot <- ggplot(cm_plot, aes(Reference, Prediction, fill = Freq)) +
+    geom_tile() +
+    geom_text(aes(label = Freq, color = Freq > 600), size = 4) +  
+    scale_fill_gradient(low = "lightblue", high = "steelblue") +
+    scale_color_manual(values = c("black", "white"), guide = "none") +  
+    labs(title = "Confusion Matrix", x = "Actual", y = "Predicted") +
+    theme_minimal()
+  
+  results$Confusion_Matrix_Plot <- cm_plot
+  return(results)
+}
+
+# Generate predictions and results
+null_preds <- predict(null_model, blr_val, type = "prob") %>%
+  mutate(.pred_class = ifelse(.pred_1 >0.5, "1", "0"), TARGET_FLAG = blr_val$TARGET_FLAG)
+
+full_preds <- predict(full_model, blr_val, type = "prob") %>%
+  mutate(.pred_class = ifelse(.pred_1 > 0.5, "1", "0"), TARGET_FLAG = blr_val$TARGET_FLAG)
+
+stepwise_preds <- predict(stepwise_model, blr_val, type = "prob") %>%
+  mutate(.pred_class = ifelse(.pred_1 >0.5, "1", "0"), TARGET_FLAG = blr_val$TARGET_FLAG)
+
+null_results <- evaluate_model(null_preds, "TARGET_FLAG", ".pred_class", ".pred_1")
+full_results <- evaluate_model(full_preds, "TARGET_FLAG", ".pred_class", ".pred_1")
+stepwise_results <- evaluate_model(stepwise_preds, "TARGET_FLAG", ".pred_class", ".pred_1")
+
+list(
+  Null_Model = null_results,
+  Full_Model = full_results,
+  Stepwise_Model = stepwise_results
+)
+
+# Arrange the plots side by side
+grid.arrange(
+  null_results$Confusion_Matrix_Plot + ggtitle("Null Model"),
+  full_results$Confusion_Matrix_Plot + ggtitle("Full Model"),
+  stepwise_results$Confusion_Matrix_Plot + ggtitle("Stepwise Model"),
+  ncol = 3
+)
+
+```
+
+
+
+
+## Retrain selected BLR on full data
+Retraining on the entire dataset allows the model to capture all available information, which generally improves its robustness for future, unseen data predictions.
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+set.seed(123)
+
+
+downsample_recipe_final <- recipe(TARGET_FLAG ~ ., data = blr_vars) %>%
+  step_downsample(TARGET_FLAG) %>%  # Downsample to handle class imbalance
+  prep()
+
+downsampled_final_data <- bake(downsample_recipe_final, new_data = NULL)
+
+
+stepwise_recipe_final <- recipe(TARGET_FLAG ~ ., data = downsampled_final_data) %>%
+  step_nzv(all_predictors()) %>%    # Remove near-zero variance predictors
+  step_corr(all_numeric_predictors(), threshold = 0.9) %>%  # Remove highly correlated predictors
+  prep()
+
+
+stepwise_final_data <- bake(stepwise_recipe_final, new_data = NULL)
+
+final_blr_stepwise_model <- logit_spec %>%
+  fit(TARGET_FLAG ~ ., data = stepwise_final_data)
+
+
+```
+
+
+# Prediction
+
+```{r, echo=FALSE, warning=FALSE, error=FALSE, cache=FALSE, message=FALSE}
+test_data<- read.csv("https://raw.githubusercontent.com/yinaS1234/Auto-Insurance-Regression/refs/heads/main/data/insurance-evaluation-data.csv")
+index <- test_data$INDEX
+str(test_data)
+test_data<-test_data %>%dplyr::select(-TARGET_AMT, -TARGET_FLAG, -INDEX)
+
+
+test_data <- test_data %>%
+  mutate(
+    INCOME = as.numeric(gsub("[$,]", "", INCOME)),
+    HOME_VAL = as.numeric(gsub("[$,]", "", HOME_VAL)),
+    OLDCLAIM = as.numeric(gsub("[$,]", "", OLDCLAIM)),
+    BLUEBOOK = as.numeric(gsub("[$,]", "", BLUEBOOK))
+  )
+
+test_data <- test_data %>%
+  mutate(across(where(~ !is.numeric(.)), 
+                ~ str_replace_all(., c("z_" = "", "<" = ""))))
+
+DataExplorer::plot_histogram(
+  data = test_data,
+  geom_histogram_args = list(alpha = 0.5, fill = "lightblue", color = "black"),
+  ggtheme = theme_minimal()
+)
+
+
+missing_flags_num <- test_data %>%
+  dplyr::select_if(is.numeric) %>%
+  summarise(across(everything(), ~ sum(is.na(.)) > 0)) %>%
+  dplyr::select(where(~ . == TRUE)) %>%
+  names()
+
+test_data <- test_data %>%
+  mutate(across(all_of(missing_flags_num), ~ ifelse(is.na(.), 1, 0), .names = "{.col}_MISSING_FLAG"))
+
+# Create Missing Flags for Categorical Variables
+test_data <- test_data %>%
+  mutate(across(where(~ !is.numeric(.)), ~ na_if(., "")))
+
+
+
+missing_flags_cat <- test_data %>%
+  dplyr::select_if(~ !is.numeric(.)) %>%
+  summarise(across(everything(), ~ sum(is.na(.)) > 0)) %>%
+  dplyr::select(where(~ . == TRUE)) %>%
+  names()
+
+test_data <- test_data %>%
+  mutate(across(all_of(missing_flags_cat), ~ ifelse(is.na(.), 1, 0), .names = "{.col}_MISSING_FLAG"))
+
+
+# Visualize Missing Values 
+vis_miss(test_data, cluster = TRUE) +
+  ggtitle("Missing Values") +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.margin = unit(c(1, 2, 1, 1), "cm")
+  )
+
+
+# Numeric variables: Regression-based imputation
+impute_mice <- mice(test_data, method = "norm.predict", m = 1, remove.collinear = FALSE)
+test_data <- complete(impute_mice)
+
+# Categorical Variables: Mode-based Imputation
+getmode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+test_data <- test_data %>%
+  mutate(across(where(~ !is.numeric(.)), ~ replace_na(., getmode(.))))
+
+# Select all columns except missing flags for visualization
+vars_without_flags <- test_data %>% dplyr::select(-contains("_MISSING_FLAG"))
+
+# Visualize Missing Values (All Variables After Imputation)
+vis_miss(vars_without_flags, cluster = TRUE) +
+  ggtitle("All Variables - Imputed Missing Values") +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.margin = unit(c(1, 2, 1, 1), "cm")
+  )
+
+missing_flag_counts <- test_data %>%
+  dplyr::select(contains("_MISSING_FLAG")) %>%
+  summarise(across(everything(), sum))
+
+# Display the count of 1s in each missing flag column
+print(missing_flag_counts)
+
+sapply(test_data, class)
+
+# Define the list of columns to be converted to factors
+factor_cols <- c("PARENT1", "MSTATUS", "SEX", "EDUCATION", "JOB", 
+                 "CAR_USE", "CAR_TYPE", "RED_CAR", "REVOKED", "URBANICITY")
+
+# Convert the specified columns to factors and the rest to numeric
+test_data <- test_data %>%
+  mutate(across(all_of(factor_cols), as.factor)) %>%
+  mutate(across(!all_of(factor_cols), as.numeric))
+
+sapply(test_data, class)
+
+
+# Define variables for conditional log transformation and Box-Cox transformation
+log_vars <- c("OLDCLAIM", "MVR_PTS")
+boxcox_vars <- c("BLUEBOOK", "CAR_AGE", "HOME_VAL", "INCOME", "TIF", "TRAVTIME", "CLM_FREQ")
+
+# Apply conditional log transformation for high-skew variables with many zeros
+test_data <- test_data %>%
+  mutate(across(all_of(log_vars), ~ if_else(. == 0, 0, log(.)), .names = "log_{.col}"))
+
+# Apply Box-Cox transformation using forecast package for other moderately skewed variables
+test_data <- test_data %>%
+  mutate(across(
+    all_of(boxcox_vars),
+    ~ forecast::BoxCox(. + 1, lambda = forecast::BoxCox.lambda(. + 1)), # Adding 1 to handle zeros
+    .names = "{.col}_transform"
+  ))
+
+# Remove original variables
+test_data <- test_data %>%
+  dplyr::select(-all_of(c(log_vars, boxcox_vars)))
+
+
+
+# Select only transformed variables for plotting
+transformed_vars <- test_data %>% dplyr::select(dplyr::matches("log_|_transform$"))
+
+# Plot histograms for transformed variables using DataExplorer
+DataExplorer::plot_histogram(
+  data = transformed_vars,
+  geom_histogram_args = list(alpha = 0.5, fill = "lightblue", color = "black"),
+  ggtheme = theme_minimal()
+)
+
+
+
+ #Feature Engineering
+# Bucketing AGE
+test_data <- test_data %>%
+  mutate(AGE_GROUP = case_when(
+    AGE < 30 ~ "Young",
+    AGE >= 30 & AGE < 50 ~ "Middle-Aged",
+    AGE >= 50 ~ "Older"
+  ))
+
+
+# Create Dummy Variables
+test_data <- test_data %>%
+  dummy_cols(remove_first_dummy = TRUE)
+
+# Define the list of original categorical columns
+cat_cols <- c("PARENT1", "MSTATUS", "SEX", "EDUCATION", "JOB", 
+              "CAR_USE", "CAR_TYPE", "RED_CAR", "REVOKED", "URBANICITY", "AGE_GROUP")
+
+# Remove the original categorical columns
+test_data <- test_data %>%
+  dplyr::select(-all_of(cat_cols))
+
+
+
+# Handle Outliers
+# Define a function for capping outliers using the 1st and 99th percentiles
+cap_outliers <- function(x) {
+  lower_bound <- quantile(x, 0.01, na.rm = TRUE)
+  upper_bound <- quantile(x, 0.99, na.rm = TRUE)
+  x <- ifelse(x < lower_bound, lower_bound, x)
+  x <- ifelse(x > upper_bound, upper_bound, x)
+  return(x)
+}
+
+# Select numeric variables, excluding target variables and missing flags
+numeric_vars <- test_data %>%
+  dplyr::select(where(~ is.numeric(.x) && !is.integer(.x)),  -contains("_MISSING_FLAG"))
+
+# Apply the capping function to each numeric variable
+test_data <- test_data %>%
+  mutate(across(all_of(names(numeric_vars)), cap_outliers))
+
+# Display summary statistics to confirm outlier handling
+#describeBy(test_data)
+
+# Adjust plot layout for a larger boxplot
+par(mar = c(8, 4, 4, 2) + 0.1, cex.axis = 0.8, las = 2)  # Increase bottom margin and axis text size
+
+# Plot boxplot with enhanced settings
+boxplot(test_data, 
+        main = "Boxplot After Outlier Handling", 
+        col = "lightblue")
+
+#str(test_data)
+
+
+# Prepare MLR variables, excluding unwanted columns
+mlr_vars <- test_data %>%
+  dplyr::select(-contains("_MISSING_FLAG"), -CLM_FREQ_transform)
+
+mlr_scaled <- mlr_vars %>%
+  mutate(across(where(~ is.numeric(.x) && !is.integer(.x)), scale))
+
+describeBy(mlr_scaled)
+
+
+blr_vars <- test_data %>%
+  dplyr::select(-contains("_MISSING_FLAG"),-log_OLDCLAIM)
+describeBy(blr_vars)
+
+
+
+# Predict the Probability of Crash (select second column if prob columns are unnamed)
+blr_probabilities <- predict(final_blr_stepwise_model, new_data = blr_vars, type = "prob")[, 2]
+
+
+TARGET_FLAG <- ifelse(blr_probabilities >= 0.5, 1, 0)
+
+# Predict TARGET_AMT using the MLR model
+mlr_log_predictions <- predict(final_mlr_stepwise_model, newdata = mlr_scaled)
+TARGET_AMT <- ifelse(TARGET_FLAG == 1, exp(mlr_log_predictions), 0)
+
+# Combine final results
+results <- data.frame(
+  Probability = blr_probabilities,
+  TARGET_FLAG = TARGET_FLAG,
+  TARGET_AMT = TARGET_AMT
+)
+colnames(results) <- c("Probability", "TARGET_FLAG", "TARGET_AMT")
+
+
+# Reshape and plot
+ggplot(melt(results), aes(value)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+
+
+
+
+final_results <- cbind(index, results)
+colnames(final_results)[1] <- "INDEX"
+
+write.csv(final_results, "final_predictions.csv", row.names = FALSE)
+
+```
+
+
