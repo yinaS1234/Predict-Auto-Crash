@@ -1,4 +1,4 @@
-# Auto Insurance Claim Prediction 🚗📈
+# Auto Insurance Claim Prediction  ✨ 🚗📈  ✨
 
 This project focuses on predicting two essential outcomes for auto insurance claims:
 1. **The probability of a car crash** (`TARGET_FLAG`) - Binary Logistic Regression
