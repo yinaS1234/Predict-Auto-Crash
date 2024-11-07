@@ -41,9 +41,6 @@ For model selection and evaluation, critical performance metrics like AUC and re
 - **Code**: R scripts for data preparation, model building, and evaluation.
 - **Final Predictions**: Exported predictions on test data for easy access.
 
-## 🌐 Real-World Impact
-
-By simulating real-world insurance scenarios, this project equips data science practitioners and insurers with insights into predicting accident likelihood and cost accurately, making the world of insurance fairer and more effective.
 
 ---
 
