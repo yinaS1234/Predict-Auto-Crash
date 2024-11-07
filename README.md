@@ -1,6 +1,3 @@
-# Auto-Insurance-Regression
-
-
 # Auto Insurance Claim Prediction 🚗📈
 
 This project focuses on predicting two essential outcomes for auto insurance claims:
