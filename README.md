@@ -39,12 +39,9 @@ Dealt with messy, inconsistent datasets by creating a systematic data preparatio
 
 
 
-
 ## 📊 Key Results and Visualizations
 
-
-
-###Stepwise Multiple Linear Regression (MLR):
+### Stepwise Multiple Linear Regression (MLR):
 
 The Stepwise MLR model slightly outperformed the Full Model with a higher Adjusted R-squared and F-statistic, balanced predictive power with model simplicity.
 
