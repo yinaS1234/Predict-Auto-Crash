@@ -6,7 +6,7 @@ This project demonstrates my ability to work with large, messy datasets in the i
 
 ## Why This Matters
 Insurance providers rely on accurate predictions for:
-1. **Assessing risk effectively.
+1. ** Assessing risk effectively.
 2. **Setting fair premiums.
 3. **Streamlining claim processes.
 
