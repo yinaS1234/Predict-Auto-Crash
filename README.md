@@ -1,5 +1,4 @@
 # Auto Insurance Claim Prediction  ✨ 🚗📈  ✨
-This project uses advanced data preparation and modeling techniques to maximize prediction accuracy, ensuring models are ready to tackle real-world scenarios with high variability.
 
 This project demonstrates my ability to work with large, messy datasets in the insurance domain, focusing on two key predictive goals:
 1. **The probability of a car crash** (`TARGET_FLAG`) - Binary Logistic Regression
