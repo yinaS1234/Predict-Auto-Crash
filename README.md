@@ -6,7 +6,7 @@ This project demonstrates my ability to work with large, messy datasets in the i
 
 ## Why This Matters
 Insurance providers rely on accurate predictions for:
-1. **Assessing risk effectively
+1. Assessing risk effectively
 2. **Setting fair premiums
 3. **Streamlining claim processes
 
@@ -16,6 +16,9 @@ Insurance providers rely on accurate predictions for:
 The project follows a systematic data preparation and modeling workflow to handle this high-dimensional dataset, clean inconsistencies, address class imbalances, and tackle multicollinearity. Below is the comprehensive flowchart of the workflow:
 
 ![Data Preparation Workflow](https://github.com/yinaS1234/Auto-Insurance-Regression/blob/main/Resources/flowchart.png)
+
+
+
 
 ## 🚀 Models Built and Evaluated
 
