@@ -49,12 +49,6 @@ The Stepwise MLR model slightly outperformed the Full Model with a higher Adjust
 ![MLR Residual Plot](https://github.com/yinaS1234/Auto-Insurance-Regression/blob/main/Resources/mlr%20resi-plot.png)
 
 ### Binary Logistic Regression (BLR) Metrics
-BLR models were assessed with **Accuracy**, **Error Rate**, **Kappa**, **Precision**, **Sensitivity**, **Specificity**, **F1 Score**, and **AUC** (Area Under the Curve):
-- **Accuracy & Error Rate**: Measure the model's correctness and error rate, providing a straightforward performance overview.
-- **Kappa**: Indicates how well the predictions match the actual values, adjusted for agreement by chance, offering a fairer metric than accuracy in imbalanced datasets.
-- **Precision & Sensitivity**: Evaluate the model's ability to correctly identify positive cases (crash likelihood), essential in risk prediction.
-- **Specificity**: Indicates the model’s ability to correctly classify non-crash cases.
-- **F1 Score & AUC**: F1 balances precision and sensitivity, while AUC reflects the overall ability to discriminate between crash and non-crash cases.
 
 The Stepwise BLR model achieved the best AUC, Kappa, and F1 scores, demonstrating balanced predictive power with reduced predictor redundancy.
 
@@ -63,9 +57,9 @@ The Stepwise BLR model achieved the best AUC, Kappa, and F1 scores, demonstratin
 
 ---
 
-By analyzing these metrics, the Stepwise models for both MLR and BLR were chosen for their ability to balance predictive power with simplicity. These models were then retrained on the full dataset to produce robust final models for prediction on unseen data.
 
----
+
+
 
 ## 📂 File Structure
 
