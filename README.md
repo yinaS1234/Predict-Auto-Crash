@@ -33,20 +33,20 @@ The project workflow is a robust, step-by-step process designed to manage high-d
 ## 🔍 Key Contributions
 ### Domain Expertise:
 Applied domain knowledge to select relevant predictors and interpret results for insurance-specific use cases.
+
 ### Dirty Dataset Handling:
 Dealt with messy, inconsistent datasets by creating a systematic data preparation workflow.
 
+
+
+
 ## 📊 Key Results and Visualizations
 
-Each model was evaluated on a set of important metrics to identify the best-performing approach.
 
-### Multiple Linear Regression (MLR) Metrics
-MLR models were evaluated on **Mean Squared Error (MSE)**, **Root Mean Squared Error (RMSE)**, **R-squared**, **Adjusted R-squared**, and **F-statistic**:
-- **MSE & RMSE**: These metrics help measure the average and root error between actual and predicted values, providing insight into prediction accuracy.
-- **R-squared & Adjusted R-squared**: These scores indicate the proportion of variance in the target variable explained by the model. Adjusted R-squared adjusts for the number of predictors, giving a more accurate assessment as predictors are added.
-- **F-statistic**: Assesses the overall significance of the model, with higher values indicating a better fit.
 
-The Stepwise MLR model slightly outperformed the Full Model with a higher Adjusted R-squared and F-statistic, indicating a more parsimonious model with similar predictive power.
+###Stepwise Multiple Linear Regression (MLR):
+
+The Stepwise MLR model slightly outperformed the Full Model with a higher Adjusted R-squared and F-statistic, balanced predictive power with model simplicity.
 
 ![MLR Model Metrics](https://github.com/yinaS1234/Auto-Insurance-Regression/blob/main/Resources/mlr%20model%20metrics.png)
 ![MLR Residual Plot](https://github.com/yinaS1234/Auto-Insurance-Regression/blob/main/Resources/mlr%20resi-plot.png)
