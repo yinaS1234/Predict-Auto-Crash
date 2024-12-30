@@ -6,7 +6,7 @@ This project demonstrates my ability to work with large, messy datasets in the i
 2. **The potential claim amount if a crash occurs** (`TARGET_AMT`) - Multiple Linear Regression
 
 ## Why This Matters
-1. **Insurance providers rely on accurate predictions for:
+Insurance providers rely on accurate predictions for:
 2. **Assessing risk effectively.
 3. **Setting fair premiums.
 4. **Streamlining claim processes.
