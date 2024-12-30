@@ -19,7 +19,6 @@ The project workflow is a robust, step-by-step process designed to manage high-d
 
 
 
-
 ## 🚀 Models Built and Evaluated
 
 ### 1. Multiple Linear Regression (MLR)
@@ -30,6 +29,12 @@ The project workflow is a robust, step-by-step process designed to manage high-d
    - **Null Model**: Serves as a baseline.
    - **Full Model**: Includes all predictors to explore all possible risk factors.
    - **Stepwise Model**: Adds preprocessing steps (removing near-zero variance and correlated features) for a leaner, more focused model.
+
+## 🔍 Key Contributions
+### Domain Expertise:
+Applied domain knowledge to select relevant predictors and interpret results for insurance-specific use cases.
+### Dirty Dataset Handling:
+Dealt with messy, inconsistent datasets by creating a systematic data preparation workflow.
 
 ## 📊 Key Results and Visualizations
 
