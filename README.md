@@ -13,7 +13,7 @@ Insurance providers rely on accurate predictions for:
 
 ## 🛠️ Project Workflow
 
-The project follows a systematic data preparation and modeling workflow to handle this high-dimensional dataset, clean inconsistencies, address class imbalances, and tackle multicollinearity. Below is the comprehensive flowchart of the workflow:
+The project workflow is a robust, step-by-step process designed to manage high-dimensional, messy data:Below is the comprehensive flowchart of the workflow:
 
 ![Data Preparation Workflow](https://github.com/yinaS1234/Auto-Insurance-Regression/blob/main/Resources/flowchart.png)
 
